@@ -80,7 +80,7 @@ function App() {
   return (
     <div className="container mx-auto max-w-3xl py-10">
       <div className="prose mb-5 mt-5" >
-      <h2>React pagination Sample App</h2>
+      <h2>React Pagination Sample App</h2>
       </div>
       <label className="relative block">
         <span className="sr-only">Search</span>
