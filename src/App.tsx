@@ -1,7 +1,8 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useCallback } from "react";
 import axios from "axios";
 import { PaginationContext } from "./pagination-context";
 import { Pagination } from "./pagination";
+import { useDebounce } from "./useDebounce";
 
 interface IRepoInfo {
   id: number;
@@ -16,14 +17,6 @@ interface IRepoInfos {
   items: IRepoInfo[];
   total_count: number;
 }
-
-const debounce = (fn: Function, ms = 300) => {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return function (this: any, ...args: any[]) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), ms);
-  };
-};
 
 function App() {
   const {perPageCount, currentUrl, setCurrentUrl, setFirstUrl, setLastUrl,setNextUrl,setPrevUrl, setPerPageCount} = useContext(PaginationContext);
@@ -53,27 +46,28 @@ function App() {
     return result;
   }
 
+  const fetchData = useCallback(useDebounce(async (url: string) => {
+    try {
+      console.log('loading', url);
+      const result = await axios.get(url);
+      const repoInfos = result.data as IRepoInfos;
+      const links = result.headers.link || "";
+      const {prev, next, first, last} = parselinks(links);
+      setPrevUrl(prev);
+      setNextUrl(next);
+      setFirstUrl(first);
+      setLastUrl(last);
+      setRepos(repoInfos.items);
+      setItemsCount(repoInfos.total_count);
+      console.log('loading complete');
+    } catch (e) {
+      console.warn('fetch error');
+      setRepos([]);
+    }
+  },500), []);
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        console.log('loading');
-        const result = await axios.get(currentUrl);
-        const repoInfos = result.data as IRepoInfos;
-        const links = result.headers.link || "";
-        const {prev, next, first, last} = parselinks(links);
-        setPrevUrl(prev);
-        setNextUrl(next);
-        setFirstUrl(first);
-        setLastUrl(last);
-        setRepos(repoInfos.items);
-        setItemsCount(repoInfos.total_count);
-        console.log('loading complete');
-      } catch (e) {
-        console.warn('fetch error');
-        setRepos([]);
-      }
-    };
-    fetchData();
+    fetchData(currentUrl);
   }, [currentUrl ]);
 
   useEffect(()=>{
