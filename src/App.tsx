@@ -1,34 +1,146 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import './App.css'
+import { useState, useEffect, useContext } from "react";
+import axios from "axios";
+import { PaginationContext } from "./pagination-context";
+import { Pagination } from "./pagination";
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <div className="App">
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </div>
-  )
+interface IRepoInfo {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string;
+  url: string;
+  html_url: string;
 }
 
-export default App
+interface IRepoInfos {
+  items: IRepoInfo[];
+  total_count: number;
+}
+
+const debounce = (fn: Function, ms = 300) => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return function (this: any, ...args: any[]) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), ms);
+  };
+};
+
+function App() {
+  const {perPageCount, currentUrl, setCurrentUrl, setFirstUrl, setLastUrl,setNextUrl,setPrevUrl, setPerPageCount} = useContext(PaginationContext);
+  const [repos, setRepos] = useState<IRepoInfo[]>([]);
+  const [itemsCount, setItemsCount] = useState(0);
+  const [query, setQuery] = useState("");
+
+  const parselinks =(links:string):{prev: string, next: string, first: string, last: string} =>{
+    const result = {
+      prev:  "",
+      next: "",
+      first: "",
+      last :""
+    }
+
+    const linkArray = links.split(",");
+    linkArray.forEach(linkdata=>{
+      const link_rel = linkdata.split(";");
+      for(const key in result){
+        if(link_rel[1].trim() === `rel="${key}"`){
+          const match = link_rel[0].match(/<(.*?)>/);
+          (result as any)[key] = match ? match[1] : "";
+        }
+      }
+      
+    })
+    return result;
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        console.log('loading');
+        const result = await axios.get(currentUrl);
+        const repoInfos = result.data as IRepoInfos;
+        const links = result.headers.link || "";
+        const {prev, next, first, last} = parselinks(links);
+        setPrevUrl(prev);
+        setNextUrl(next);
+        setFirstUrl(first);
+        setLastUrl(last);
+        setRepos(repoInfos.items);
+        setItemsCount(repoInfos.total_count);
+        console.log('loading complete');
+      } catch (e) {
+        console.warn('fetch error');
+        setRepos([]);
+      }
+    };
+    fetchData();
+  }, [currentUrl ]);
+
+  useEffect(()=>{
+    const completeQueryUrl = `https://api.github.com/search/repositories?q=${query}&per_page=${perPageCount}`;
+    setCurrentUrl(completeQueryUrl);
+  },[query, perPageCount])
+
+  
+
+  return (
+    <div className="container mx-auto max-w-3xl py-10">
+      <div className="prose mb-5 mt-5" >
+      <h2>React pagination Sample App</h2>
+      </div>
+      <label className="relative block">
+        <span className="sr-only">Search</span>
+        <span className="absolute inset-y-0 left-0 flex items-center pl-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth="0.8"
+            stroke="currentColor"
+            className="w-6 h-6"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
+          </svg>
+        </span>
+        <input
+          className="placeholder:italic placeholder:text-slate-400 block bg-white w-full border-2 border-slate-300 rounded-md py-2 pl-9 pr-3 shadow-sm focus:outline-none focus:border-sky-500 focus:ring-sky-500 focus:ring-1 sm:text-sm"
+          placeholder="Search for github repositories..."
+          type="text"
+          name="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </label>
+      <p className="italic font-medium text-sm text-slate-500 font-mono mb-3 dark:text-slate-400">
+        {currentUrl}
+      </p>
+      
+      <div className="flex flex-col gap-5 relative rounded-xl overflow-auto p-8">
+        <span>Total results: {itemsCount}</span>
+        {repos.map((repo, i) => (
+          <div className="p-4 border rounded prose-sm w-full max-w-full" key={repo.id}>
+            
+            <h3>
+              <span>{i + 1}</span>
+              . {repo.name}
+              
+            </h3>
+            <p className="mb-0">
+              <span>Full Name : </span> {repo.full_name}
+            </p>
+            <p className="mt-0">
+              <span>Description : </span> {repo.description}
+            </p>
+          </div>
+        ))}
+      </div>      
+      <Pagination></Pagination>  
+    </div>
+  );
+}
+
+export default App;
